@@ -57,6 +57,26 @@ def add_batch_line(
     return int(cur.lastrowid)
 
 
+def update_batch_receipt(
+    conn: sqlite3.Connection,
+    batch_id: int,
+    *,
+    ticket_count: int,
+    line_count: int,
+    skipped_count: int,
+    status: str,
+) -> None:
+    """Align the batch receipt with what was actually written to the price book."""
+    conn.execute(
+        '''
+        UPDATE apply_batches
+        SET ticket_count=?, line_count=?, skipped_count=?, status=?
+        WHERE id=?
+        ''',
+        (ticket_count, line_count, skipped_count, status, batch_id),
+    )
+
+
 def get_batch(conn: sqlite3.Connection, batch_id: int) -> dict[str, Any] | None:
     row = conn.execute("SELECT * FROM apply_batches WHERE id=?", (batch_id,)).fetchone()
     return dict(row) if row else None

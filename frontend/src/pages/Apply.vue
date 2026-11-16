@@ -4,15 +4,17 @@ import { api } from '../api'
 
 const clock = ref('')
 const batches = ref([])
+const consistency = ref(null)
 const msg = ref('')
 const err = ref('')
 const result = ref(null)
 const detail = ref(null)
 
 async function refresh() {
-  const c = await api.clock()
+  const [c, b, s] = await Promise.all([api.clock(), api.batches(), api.applyState()])
   clock.value = c.business_clock || ''
-  batches.value = await api.batches()
+  batches.value = b
+  consistency.value = s
 }
 
 async function saveClock() {
@@ -35,8 +37,10 @@ async function applyDue() {
   try {
     result.value = await api.applyDue()
     msg.value = result.value.applied
-      ? `批次 ${result.value.batch_no}：应用 ${result.value.ticket_count} 张改价单，写入 ${result.value.line_count} 行，被覆盖跳过 ${result.value.skipped_count} 行`
-      : result.value.message
+      ? `批次 ${result.value.batch_no}：应用 ${result.value.ticket_count} 张改价单，写入 ${result.value.line_count} 行（商品 ${result.value.written_skus.join('、')}），被覆盖跳过 ${result.value.skipped_count} 行`
+      : (result.value.reason === 'divergence_reconciled'
+        ? `${result.value.message}（已修复 ${result.value.reconciled.repairs.length} 处）`
+        : result.value.message)
     await refresh()
   } catch (e) {
     err.value = e.message
@@ -78,6 +82,9 @@ onMounted(() => refresh().catch((e) => (err.value = e.message)))
 
   <div class="panel">
     <h2>应用批次</h2>
+    <p v-if="consistency && !consistency.consistent" class="msg err">
+      分叉未清：单状态与价签本/历史不同源。先收口再应用（本轮只会修复，不会写入新价）。
+    </p>
     <table>
       <thead>
         <tr><th>批次</th><th>业务钟</th><th>改价单数</th><th>写入行</th><th>跳过行</th><th>策略</th><th>状态</th><th>时间</th></tr>
@@ -90,7 +97,9 @@ onMounted(() => refresh().catch((e) => (err.value = e.message)))
           <td>{{ b.line_count }}</td>
           <td>{{ b.skipped_count }}</td>
           <td>{{ b.strategy }}</td>
-          <td><span class="tag ok">{{ b.status }}</span></td>
+          <td>
+            <span class="tag" :class="b.status === 'done' ? 'ok' : 'bad'">{{ b.status }}</span>
+          </td>
           <td>{{ b.created_at }}</td>
         </tr>
       </tbody>
@@ -109,7 +118,7 @@ onMounted(() => refresh().catch((e) => (err.value = e.message)))
             <td>{{ l.sku_code }}</td>
             <td>{{ l.new_price }}</td>
             <td>
-              <span class="tag" :class="l.status === 'applied' ? 'ok' : 'muted'">{{ l.status }}</span>
+              <span class="tag" :class="l.status === 'applied' ? 'ok' : (l.status === 'divergent' ? 'bad' : 'muted')">{{ l.status }}</span>
             </td>
             <td>{{ l.covered_by_ticket_no || '—' }}</td>
           </tr>

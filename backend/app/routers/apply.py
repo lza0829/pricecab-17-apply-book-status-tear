@@ -25,6 +25,12 @@ def list_batches():
     return svc.list_batches()
 
 
+@router.get("/state")
+def apply_state():
+    """互证视图：单状态 / 批次回执 / 价签本 / 历史末行 / 总览计数是否同源。"""
+    return svc.get_apply_state()
+
+
 @router.get("/batches/{batch_id}")
 def get_batch(batch_id: int):
     return svc.get_batch(batch_id)

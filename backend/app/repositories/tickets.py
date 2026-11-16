@@ -74,11 +74,15 @@ def list_lines(conn: sqlite3.Connection, ticket_id: int) -> list[dict[str, Any]]
 
 
 def due_tickets(conn: sqlite3.Connection, clock_at: str) -> list[dict[str, Any]]:
-    """Due tickets in apply queue order: effective_at first, then ticket_no."""
+    """Due tickets in apply queue order: effective_at first, then ticket_no.
+
+    Tickets that already carry a batch id are excluded even if their status
+    still says scheduled: a ticket with a batch receipt is never re-scanned.
+    """
     rows = conn.execute(
         '''
         SELECT * FROM price_tickets
-        WHERE status='scheduled' AND effective_at <= ?
+        WHERE status='scheduled' AND apply_batch_id IS NULL AND effective_at <= ?
         ORDER BY effective_at, ticket_no
         ''',
         (clock_at,),
@@ -86,19 +90,15 @@ def due_tickets(conn: sqlite3.Connection, clock_at: str) -> list[dict[str, Any]]
     return [dict(r) for r in rows]
 
 
-def mark_status(
+def set_status(
     conn: sqlite3.Connection,
     ticket_id: int,
     *,
     status: str,
-    applied_at: str,
-    batch_id: int,
+    applied_at: str | None,
+    batch_id: int | None,
 ) -> None:
     conn.execute(
-        '''
-        UPDATE price_tickets
-        SET status=?, applied_at=?, apply_batch_id=?
-        WHERE id=?
-        ''',
+        "UPDATE price_tickets SET status=?, applied_at=?, apply_batch_id=? WHERE id=?",
         (status, applied_at, batch_id, ticket_id),
     )

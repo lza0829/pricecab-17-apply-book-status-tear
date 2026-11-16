@@ -83,7 +83,8 @@ def init_schema(conn) -> None:
           price REAL NOT NULL,
           source_ticket_no TEXT,
           effective_at TEXT NOT NULL,
-          recorded_at TEXT NOT NULL
+          recorded_at TEXT NOT NULL,
+          batch_id INTEGER
         );
         CREATE TABLE IF NOT EXISTS sales_fixture (
           id INTEGER PRIMARY KEY,
@@ -118,6 +119,7 @@ def seed_if_empty() -> None:
                        "skipped_count INTEGER NOT NULL DEFAULT 0")
         _ensure_column(conn, "apply_batches", "strategy",
                        "strategy TEXT NOT NULL DEFAULT 'last_write_wins'")
+        _ensure_column(conn, "price_history", "batch_id", "batch_id INTEGER")
         n = conn.execute("SELECT COUNT(*) c FROM skus").fetchone()["c"]
         if n:
             conn.commit()

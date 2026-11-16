@@ -26,6 +26,7 @@ export const api = {
   setClock: (business_clock) =>
     request('/api/apply/clock', { method: 'PUT', body: JSON.stringify({ business_clock }) }),
   applyDue: () => request('/api/apply/due', { method: 'POST' }),
+  applyState: () => request('/api/apply/state'),
   batches: () => request('/api/apply/batches'),
   batch: (id) => request(`/api/apply/batches/${id}`),
   priceBook: () => request('/api/prices/book'),

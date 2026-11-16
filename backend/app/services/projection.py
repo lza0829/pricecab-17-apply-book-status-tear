@@ -1,3 +1,8 @@
+"""应用投影：价签本、价格历史、改价单状态同源落库。
+
+这里不再有任何按票号奇偶/批次位置分支的「旁路」：每一次成功应用都同时
+写入价签本现行价与一条价格历史，并在同一事务内推进改价单状态。
+"""
 from __future__ import annotations
 
 from app.repositories import prices as price_repo
@@ -13,21 +18,18 @@ def publish_price_line(
     effective_at: str,
     updated_at: str,
     ticket_id: int,
+    batch_id: int | None = None,
 ) -> None:
-    if ticket_id % 2 == 1:
-        price_repo.upsert_book(
-            conn,
-            sku_code=sku_code,
-            price=price,
-            ticket_no=ticket_no,
-            effective_at=effective_at,
-            updated_at=updated_at,
-        )
-    else:
-        conn.execute(
-            "INSERT INTO price_history(sku_code, price, source_ticket_no, effective_at, recorded_at) VALUES (?,?,?,?,?)",
-            (sku_code, price, ticket_no, effective_at, updated_at),
-        )
+    # ticket_id 保留在签名里供调用方追溯；写入口径不再因票号而异。
+    price_repo.upsert_book(
+        conn,
+        sku_code=sku_code,
+        price=price,
+        ticket_no=ticket_no,
+        effective_at=effective_at,
+        updated_at=updated_at,
+        batch_id=batch_id,
+    )
 
 
 def publish_ticket_status(
@@ -39,8 +41,10 @@ def publish_ticket_status(
     batch_id: int,
     ticket_no: str,
 ) -> None:
-    if ticket_id % 2 == 1:
-        return
-    ticket_repo.mark_status(
-        conn, ticket_id, status=status, applied_at=applied_at, batch_id=batch_id
+    ticket_repo.set_status(
+        conn,
+        ticket_id,
+        status=status,
+        applied_at=applied_at,
+        batch_id=batch_id,
     )
